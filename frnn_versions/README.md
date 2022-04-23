@@ -12,4 +12,6 @@ Frnn folders with 'bipart' in the name only return pairs that match accross two 
 
 'frnn_kernel_designs' provides some possible kernel designs that would provide various performance tradeoffs in varied input scenarios. For relatively sparse input graphs, a brute-force method is often fast enough.
 
+'frnn_cpu' includes a cpu-based implementation of frnn, since it is (was?) pytorch standard practice to provide device-agnostic code for model training. I used the @njit decorator to pass the function to Numba's "no-python" jit compiler, which provides a significant speedup over serial python iteration, somewhat optimizing and optionally parallelizing the work on cpu. Nevertheless, the space complexity is much worse due to Numba's inability to dynamically allocate tensors while computing the output (or provide a globally-atomic way to lock writes to an output structure). 
+
 The structure of the code files in each library may vary depending on whether that library is built with CMake or Python's Builtools-Ninja. The Ninja compiler (and to some extent, CMake and the pytorch utility for importing precompiled functions) provides some unusual restrictions about where and how kernels can be compiled and included into a library (and become available to python). Therefore, I've had to use some inelegant code layouts to keep functionality separate and legible.  

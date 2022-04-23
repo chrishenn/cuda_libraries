@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.8 FATAL_ERROR)
 
 # Create project
-SET(PROJECT_NAME frnn_ts)
+SET(PROJECT_NAME stack_cols)
 project(${PROJECT_NAME} LANGUAGES CUDA CXX)
 
 # TORCH
