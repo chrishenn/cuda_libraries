@@ -1,4 +1,4 @@
-import conn_comp.conncom_kernels as conncom_kern
+import ccpt.ccpt_kernels as ccpt_kernels
 
 import numpy as np
 import numba.cuda as cuda
@@ -6,16 +6,18 @@ import numba.cuda as cuda
 import torch as t
 
 
-def get_conn_comp(edges, imgid):
+def get_ccpt(edges, imgid):
     '''
     TODO: this is where we would switch on gpu vs. cpu impl, depending on device availability
     '''
+    if edges.is_cuda:
+        return ccpt_gpu(edges, imgid.size(0))
+    else:
+        raise NotImplementedError("ccpt not implemented for cpu-data; 'edges' passed to get_ccpt() is on cpu")
 
-    return conncom_forward(edges, imgid.size(0))
 
 
-
-def conncom_forward( d_edges, num_n ):
+def ccpt_gpu( d_edges, num_n ):
     num_e = d_edges.size(0)
 
     # Cuda set device; init cuda stream
@@ -29,27 +31,27 @@ def conncom_forward( d_edges, num_n ):
     d_mask = cuda.device_array(num_n, dtype=np.int32)
     d_mark = cuda.device_array(num_e, dtype=np.int32)
 
-    threads = 512
+    threads = 256
     grid_n = (num_n - 1) // threads +1
     grid_e = (num_e - 1) // threads +1
 
     ## init
-    conncom_kern.init_zero[grid_e, threads](d_mark, num_e)
-    conncom_kern.init_zero[grid_n, threads](d_an_writeonce, num_n)
-    conncom_kern.init_sequential[grid_n, threads](d_an, num_n)
-    conncom_kern.select_winner_init[grid_e, threads](d_an, d_an_writeonce, d_edges, num_e)
+    ccpt_kernels.init_zero[grid_e, threads](d_mark, num_e)
+    ccpt_kernels.init_zero[grid_n, threads](d_an_writeonce, num_n)
+    ccpt_kernels.init_sequential[grid_n, threads](d_an, num_n)
+    ccpt_kernels.select_winner_init[grid_e, threads](d_an, d_an_writeonce, d_edges, num_e)
 
     while True:
         flag = np.array([0])
         d_flag = cuda.to_device(flag)
 
-        conncom_kern.pointer_jump[grid_n, threads](num_n, d_an, d_flag)
+        ccpt_kernels.pointer_jump[grid_n, threads](num_n, d_an, d_flag)
 
         d_flag.copy_to_host(flag)
         if flag[0] == 0: break
 
     # Main loop
-    conncom_kern.update_mask[grid_n, threads](d_mask, num_n, d_an)
+    ccpt_kernels.update_mask[grid_n, threads](d_mask, num_n, d_an)
 
     lpc = 0
     while True:
@@ -57,9 +59,9 @@ def conncom_forward( d_edges, num_n ):
         d_flag = cuda.to_device(flag)
 
         if lpc % 4 == 0:
-            conncom_kern.connect_low2hi[grid_e, threads](d_an, d_edges, num_e, d_flag, d_mark)
+            ccpt_kernels.connect_low2hi[grid_e, threads](d_an, d_edges, num_e, d_flag, d_mark)
         else:
-            conncom_kern.connect_hi2low[grid_e, threads](d_an, d_edges, num_e, d_flag, d_mark)
+            ccpt_kernels.connect_hi2low[grid_e, threads](d_an, d_edges, num_e, d_flag, d_mark)
         lpc += 1
 
         d_flag.copy_to_host(flag)
@@ -69,13 +71,13 @@ def conncom_forward( d_edges, num_n ):
             inner_flag = np.array([0])
             d_inner_flag = cuda.to_device(inner_flag)
 
-            conncom_kern.pointer_jump_masked[grid_n, threads](num_n, d_an, d_inner_flag, d_mask)
+            ccpt_kernels.pointer_jump_masked[grid_n, threads](num_n, d_an, d_inner_flag, d_mask)
 
             d_inner_flag.copy_to_host(inner_flag)
             if inner_flag[0] == 0: break
 
-        conncom_kern.pointer_jump_unmasked[grid_n, threads](num_n, d_an, d_mask)
-        conncom_kern.update_mask[grid_n, threads](d_mask, num_n, d_an)
+        ccpt_kernels.pointer_jump_unmasked[grid_n, threads](num_n, d_an, d_mask)
+        ccpt_kernels.update_mask[grid_n, threads](d_mask, num_n, d_an)
 
     return t.tensor(d_an, device=torch_device)
 

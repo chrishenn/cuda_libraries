@@ -1,5 +1,5 @@
 /**
-Authors: Christian Henn, Qianli Liao
+Author: Christian Henn
 
 find percentage of top-scoring edges in each image
 **/
@@ -50,13 +50,13 @@ inline void __cudaCheckError( const char *file, const int line )
 
 
 
-
+template <typename scalar_t>
 __global__ void bin_edges(
         const long* edges,
-        const float* scores,
+        const scalar_t* scores,
 
         const long* e_imgid,
-              float* im_escores,
+            scalar_t* im_escores,
               long* im_eids,
               int* bin_counts,
 
@@ -81,11 +81,11 @@ __global__ void collate_top(
                 int* glob_count,
 
         const int max_binsize,
-        const float keep_frac
+        const double keep_frac
 ) {
     int row = blockIdx.x;
     int bin_size = bin_counts[row];
-    int block_keep = bin_size * keep_frac + 1;
+    int block_keep = int( bin_size * keep_frac ) + 1;
     block_keep = min(block_keep, bin_size);
 
     for (int block_i = threadIdx.x; block_i < max_binsize; block_i += blockDim.x)
@@ -105,7 +105,7 @@ std::vector<torch::Tensor> edge_topim_cuda_call(
     torch::Tensor imgid,
     torch::Tensor batch_size,
 
-    float keep_frac
+    double keep_frac
 ){
     using namespace torch::indexing;
 
@@ -127,6 +127,11 @@ std::vector<torch::Tensor> edge_topim_cuda_call(
             .layout(torch::kStrided)
             .device(torch::kCUDA, device);
 
+    auto dyn_float_options = torch::TensorOptions()
+            .dtype(scores.scalar_type())
+            .layout(torch::kStrided)
+            .device(torch::kCUDA, device);
+
     auto e_imgid = imgid.index_select(0, edges.index({Slice(), 0}));
     auto max_binsize = e_imgid.bincount().max();
 
@@ -134,7 +139,7 @@ std::vector<torch::Tensor> edge_topim_cuda_call(
     torch::Tensor glob_count = torch::zeros(1, int_options);
 
     torch::Tensor bin_counts = torch::zeros(batch_size.item<int>(), int_options);
-    torch::Tensor im_escores = torch::full({batch_size.item<int>(), max_binsize.item<int>()}, -10000, float_options);
+    torch::Tensor im_escores = torch::full({batch_size.item<int>(), max_binsize.item<int>()}, -10000, dyn_float_options);
     torch::Tensor im_eids = torch::empty({batch_size.item<int>(), max_binsize.item<int>()}, long_options);
 
     cudaDeviceProp deviceProp;
@@ -147,19 +152,19 @@ std::vector<torch::Tensor> edge_topim_cuda_call(
     const dim3 threads(n_threads);
 
     // bin edges along a row for each image, for both scores and edge_ids. match cols.
-    bin_edges<<<blocks, threads>>>(
-        edges.data_ptr<long>(),
-        scores.data_ptr<float>(),
+    AT_DISPATCH_FLOATING_TYPES_AND(torch::ScalarType::Half, scores.scalar_type(), "bin_edges", ([&] {
+        bin_edges<<<blocks, threads>>>(
+            edges.data_ptr<long>(),
+            scores.data_ptr<scalar_t>(),
 
-        e_imgid.data_ptr<long>(),
-        im_escores.data_ptr<float>(),
-        im_eids.data_ptr<long>(),
-        bin_counts.data_ptr<int>(),
+            e_imgid.data_ptr<long>(),
+            im_escores.data_ptr<scalar_t>(),
+            im_eids.data_ptr<long>(),
+            bin_counts.data_ptr<int>(),
 
-        max_binsize.item<int>(),
-        edges.size(0)
-    );
-    CudaCheckError();
+            max_binsize.item<int>(),
+            edges.size(0)
+        ); })); CudaCheckError();
 
     // use im_escores.sort(dim=1) to get ids, to sort im_escores and im_eids
     auto sortids  = std::get<1>( im_escores.sort(1, true) );
@@ -175,8 +180,7 @@ std::vector<torch::Tensor> edge_topim_cuda_call(
 
         max_binsize.item<int>(),
         keep_frac
-    );
-    CudaCheckError();
+    ); CudaCheckError();
     keep_ids = keep_ids.narrow(0, 0, glob_count.item<int>());
 
     return {keep_ids};

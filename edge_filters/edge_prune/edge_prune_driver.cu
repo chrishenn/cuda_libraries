@@ -1,5 +1,5 @@
 /**
-Authors: Christian Henn, Qianli Liao
+Author: Christian Henn
 
 prune edges in 'drop_edges' from 'edges'
 **/

@@ -1,9 +1,8 @@
 /**
-Authors: Christian Henn, Qianli Liao
+Author: Christian Henn
 **/
 
 #include <torch/types.h>
-//#include <torch/script.h>
 
 #include <cuda.h>
 #include <cuda_runtime.h>
@@ -62,7 +61,7 @@ __global__ void perim_max_main(
     const int values_size1,
     const int values_readcol,
 
-          int* inter_ints
+    int* inter_ints
 
 ){
     for (int glob_i = blockIdx.x * blockDim.x + threadIdx.x; glob_i < imgid_size0; glob_i += blockDim.x * gridDim.x)

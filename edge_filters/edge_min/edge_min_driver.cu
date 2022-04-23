@@ -1,8 +1,7 @@
 /**
-Authors: Christian Henn, Qianli Liao
+Author: Christian Henn
 
-find top-scoring edges in each group of edges, where a group of edges provides predictions for a given target object
- global threshold for scores acts across all images, is an absolute value-threshold
+Find minimum-score edges, for each group of edges contributing to a given target
 **/
 
 #include <torch/types.h>
@@ -17,7 +16,7 @@ find top-scoring edges in each group of edges, where a group of edges provides p
 
 
 // define for error checking
-// #define CUDA_ERROR_CHECK
+ #define CUDA_ERROR_CHECK
 
 // function prototypes
 double get_nanos();
@@ -67,9 +66,6 @@ __global__ void bin_edge_kern(
             long*  __restrict__  g_edgeids,
             int*   __restrict__  g_bincounts,
 
-            long*  __restrict__  keep_ids,
-            int*   __restrict__  glob_count,
-
     const   int                  max_binsize,
     const   int                  n_edges
 ) {
@@ -94,27 +90,26 @@ __global__ void topfrac_edge_kern(
             long*  __restrict__  g_edgeids,
             int*   __restrict__  g_bincounts,
 
-            long*  __restrict__  keep_ids,
+            long*  __restrict__  drop_ids,
             int*   __restrict__  glob_count,
 
     const   int                  max_binsize,
     const   int                  n_bins,
-    const   float                keep_frac,
-    const   float                threshold
+    const   float                drop_frac
 ) {
     for (int glob_i = blockIdx.x * blockDim.x + threadIdx.x; glob_i < n_bins; glob_i += blockDim.x * gridDim.x)
     {
         int bin_count = g_bincounts[glob_i];
         if (bin_count < 1) continue;
 
-        int keep_num = int( float(bin_count) * keep_frac ) +1;
-        keep_num = min(keep_num, bin_count);
+        int drop_num = int( float(bin_count) * drop_frac );
+        drop_num = min(drop_num, bin_count);
         
-        // for each max to find
-        for (int n_maxes = 0; n_maxes < keep_num; n_maxes++)
+        // for each min to find
+        for (int n_mins = 0; n_mins < drop_num; n_mins++)
         {
-            int max_binloc = -1;
-            float max_score = threshold;
+            int min_binloc;
+            float min_score = 1000;
             
             // look through this row (this global bin)
             for (int col = 0; col < bin_count; col++){
@@ -122,33 +117,31 @@ __global__ void topfrac_edge_kern(
                 int curr_loc = glob_i * max_binsize + col;
                 float curr_score = g_binscores[curr_loc];
                 
-                if (curr_score > max_score){
-                    max_score = curr_score;                      
-                    max_binloc = curr_loc;
+                if (curr_score < min_score){
+                    min_score = curr_score;
+                    min_binloc = curr_loc;
                 }
             }
-
-            if (max_binloc > -1) {
-                int glob_write = atomicAdd(glob_count, 1);
-                keep_ids[glob_write] = g_edgeids[max_binloc];
-                g_binscores[max_binloc] = -100000;
-            } else { break; }
+    
+            int glob_write = atomicAdd(glob_count, 1);
+            drop_ids[glob_write] = g_edgeids[min_binloc];
+            g_binscores[min_binloc] = 100000;
         }
     }  
 }
 
 
 
-std::vector<torch::Tensor> edge_bin_cuda_call(
+std::vector<torch::Tensor> edge_min_cuda_call(
     torch::Tensor edges,
     torch::Tensor scores,
     torch::Tensor imgid,
 
-    float keep_frac,
-    float threshold
-) {
+    torch::Tensor max_binsize,
 
-    using namespace torch::indexing;
+    float drop_frac
+){
+
     auto device = edges.get_device();
     cudaSetDevice(device);
 
@@ -167,9 +160,7 @@ std::vector<torch::Tensor> edge_bin_cuda_call(
             .layout(torch::kStrided)
             .device(torch::kCUDA, device);
 
-    auto max_binsize = edges.index({Slice(), Slice(1)}).squeeze().bincount().max();
-
-    torch::Tensor keep_ids =   torch::empty(edges.size(0), long_options);
+    torch::Tensor drop_ids =   torch::empty(edges.size(0), long_options);
     torch::Tensor glob_count = torch::zeros({1}, int_options);
 
     torch::Tensor g_binscores = torch::empty({imgid.size(0), max_binsize.item<int>()}, float_options);
@@ -195,9 +186,6 @@ std::vector<torch::Tensor> edge_bin_cuda_call(
         g_edgeids.data_ptr<long>(),
         g_bincounts.data_ptr<int>(),
 
-        keep_ids.data_ptr<long>(),
-        glob_count.data_ptr<int>(),
-
         max_binsize.item<int>(),
         edges.size(0)
     );
@@ -211,20 +199,19 @@ std::vector<torch::Tensor> edge_bin_cuda_call(
             g_edgeids.data_ptr<long>(),
             g_bincounts.data_ptr<int>(),
 
-            keep_ids.data_ptr<long>(),
+            drop_ids.data_ptr<long>(),
             glob_count.data_ptr<int>(),
 
             max_binsize.item<int>(),
             imgid.size(0),
-            keep_frac,
-            threshold
+            drop_frac
     );
     CudaCheckError();
 
-    keep_ids = keep_ids.narrow(0, 0, glob_count.item<int>());
-//    return {keep_ids};
+    drop_ids = drop_ids.narrow(0, 0, glob_count.item<int>());
+    return {drop_ids};
 
-    return {keep_ids, edges,scores, g_binscores, g_edgeids, g_bincounts, glob_count, max_binsize  };
+//    return {edges,scores,g_binscores, g_edgeids, g_bincounts,drop_ids, glob_count , max_binsize  };
 }
 
 
