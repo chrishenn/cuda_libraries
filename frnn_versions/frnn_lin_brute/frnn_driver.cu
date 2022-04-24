@@ -1,7 +1,5 @@
 /**
-Authors: Christian Henn, Qianli Liao
-
-Implements the Fixed-Radius Nearest-Neighbor (frnn) algorithm [Qianli Liao and David Walter]. Parallel exclusive scan code adapted from [Matt Dean - 1422434 - mxd434].
+Author: Christian Henn
 
 This file relies on Pytorch calls from the Pytorch C++ API.
 

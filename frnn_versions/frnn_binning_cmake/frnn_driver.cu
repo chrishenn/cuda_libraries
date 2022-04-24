@@ -1,7 +1,9 @@
 /**
-Authors: Christian Henn, Qianli Liao
+Author: Christian Henn
 
-Implements the Fixed-Radius Nearest-Neighbor (frnn) algorithm [Qianli Liao and David Walter]. Parallel exclusive scan code adapted from [Matt Dean - 1422434 - mxd434].
+Implements the Fixed-Radius Nearest-Neighbor (frnn) algorithm [Qianli Liao and David Walter].
+
+Parallel exclusive scan code adapted from [Matt Dean - 1422434 - mxd434].
 
 This file relies on Pytorch calls from the Pytorch C++ API.
 
@@ -12,10 +14,6 @@ This file relies on Pytorch calls from the Pytorch C++ API.
 **/
 
 #include <torch/types.h>
-
-//#include <cuda.h>
-//#include <cuda_runtime.h>
-//#include <assert.h>
 
 #include <vector>
 #include <math.h>

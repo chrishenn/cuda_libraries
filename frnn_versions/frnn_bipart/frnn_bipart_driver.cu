@@ -1,8 +1,12 @@
 /**
-Authors: Christian Henn, Qianli Liao
+Author: Christian Henn
 
-Implements the Fixed-Radius Nearest-Neighbor (frnn) algorithm [Qianli Liao and David Walter], modified to support two
- object-groups, where edges are only found between members of different groups. Parallel exclusive scan code adapted from [Matt Dean - 1422434 - mxd434].
+Implements the Fixed-Radius Nearest-Neighbor (frnn) algorithm [Qianli Liao and David Walter]
+
+ modified to support two
+ object-groups, where edges are only found between members of different groups.
+
+ Parallel exclusive scan code adapted from [Matt Dean - 1422434 - mxd434].
 **/
 
 #include <torch/types.h>

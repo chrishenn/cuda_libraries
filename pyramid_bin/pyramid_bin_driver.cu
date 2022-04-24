@@ -1,5 +1,5 @@
 /**
-Authors: Christian Henn, Qianli Liao
+Author: Christian Henn
 
 find percentage of top-scoring edges in each image
 **/

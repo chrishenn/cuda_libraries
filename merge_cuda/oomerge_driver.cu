@@ -1,6 +1,5 @@
 /**
 Author: Christian Henn
-
 **/
 
 #include <torch/types.h>
