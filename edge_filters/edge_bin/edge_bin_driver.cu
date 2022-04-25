@@ -1,5 +1,5 @@
 /**
-Author: Christian Henn
+Author: Chris Henn (https://github.com/chrishenn)
 
 find top-scoring edges in each group of edges, where a group of edges provides predictions for a given target object
  global threshold for scores acts across all images, is an absolute value-threshold

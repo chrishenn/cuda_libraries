@@ -1,5 +1,5 @@
 /**
-Author: Christian Henn
+Author: Chris Henn (https://github.com/chrishenn)
 
 Find minimum-score edges, for each group of edges contributing to a given target
 **/

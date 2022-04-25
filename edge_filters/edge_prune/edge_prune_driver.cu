@@ -1,5 +1,5 @@
 /**
-Author: Christian Henn
+Author: Chris Henn (https://github.com/chrishenn)
 
 prune edges in 'drop_edges' from 'edges'
 **/

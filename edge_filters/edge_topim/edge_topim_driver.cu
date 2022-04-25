@@ -1,5 +1,5 @@
 /**
-Author: Christian Henn
+Author: Chris Henn (https://github.com/chrishenn)
 
 find percentage of top-scoring edges in each image
 **/

@@ -1,5 +1,5 @@
 /**
-Author: Christian Henn
+Author: Chris Henn (https://github.com/chrishenn)
 **/
 
 #include <torch/types.h>

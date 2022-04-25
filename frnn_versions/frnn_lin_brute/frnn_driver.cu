@@ -1,5 +1,5 @@
 /**
-Author: Christian Henn
+Author: Chris Henn (https://github.com/chrishenn)
 
 This file relies on Pytorch calls from the Pytorch C++ API.
 
